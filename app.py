@@ -13,7 +13,7 @@ st.set_page_config(page_title="모바일 단어장", layout="centered")
 # =====================================================================
 # 🍪 쿠키 매니저 실행 (자동 로그인의 핵심)
 # =====================================================================
-@st.cache_resource(experimental_allow_widgets=True)
+@st.cache_resource
 def get_manager():
     return stx.CookieManager()
 
