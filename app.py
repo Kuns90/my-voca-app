@@ -9,7 +9,7 @@ from streamlit_option_menu import option_menu
 st.set_page_config(page_title="모바일 단어장", layout="centered")
 
 # =====================================================================
-# 1. 데이터베이스(JSON) 관리 (회원명부 & 진도장) -> 쉬운 방법으로 복구!
+# 1. 데이터베이스(JSON) 관리 (회원명부 & 진도장)
 # =====================================================================
 USERS_FILE = "users.json"
 PROGRESS_FILE = "progress.json"
@@ -69,7 +69,6 @@ if not st.session_state.logged_in:
             elif len(clean_new_id) < 2 or len(new_pw) < 2:
                 st.warning("아이디와 비밀번호는 2글자 이상이어야 합니다.")
             else:
-                # 💡 JSON 파일에 가입 정보 저장
                 users_db[clean_new_id] = new_pw
                 save_json(USERS_FILE, users_db)
                 progress_db[clean_new_id] = {}
@@ -78,49 +77,44 @@ if not st.session_state.logged_in:
     st.stop() 
 
 # =====================================================================
-# 3. 메인 앱 세팅 (메뉴바 & 👑 관리자 백업 기능)
+# 3. 메인 앱 세팅 (메뉴바 & 👑 관리자 메뉴 맨 밑으로 이동)
 # =====================================================================
 current_user = st.session_state.user_id
 
 with st.sidebar:
     st.markdown(f"### 👤 **{current_user}** 님 환영합니다!")
     
-    # 💡 만약 로그인한 사람이 창조주('admin')라면 백업 버튼을 보여줌!
-    if current_user == "admin": # 회원님이 쓰시는 실제 아이디로 "admin" 글자를 바꿔주세요.
-        st.write("---")
-        st.markdown("👑 **관리자 백업 메뉴**")
-        
-        # users.json 백업 버튼
-        if os.path.exists(USERS_FILE):
-            with open(USERS_FILE, "r", encoding="utf-8") as f:
-                user_data = f.read()
-            st.download_button(label="📥 회원명부 백업 (users.json)", data=user_data, file_name="users_backup.json", mime="application/json")
-            
-        # progress.json 백업 버튼
-        if os.path.exists(PROGRESS_FILE):
-            with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
-                prog_data = f.read()
-            st.download_button(label="📥 진도기록 백업 (progress.json)", data=prog_data, file_name="progress_backup.json", mime="application/json")
-        st.write("---")
-
+    menu = option_menu(
+        menu_title="📚 메뉴", 
+        options=["단어/표현 리스트", "플래시카드", "복습", "★ 핵심정리"], 
+        icons=["list-ul", "layer-backward", "arrow-repeat", "star-fill"], 
+        default_index=0
+    )
+    
+    st.divider()
+    
     if st.button("🚪 로그아웃", use_container_width=True):
         st.session_state.logged_in = False
         st.session_state.user_id = ""
         st.session_state.voca_data = None 
         st.rerun()
         
-    st.divider()
-    menu = option_menu(
-        menu_title="📚 메뉴", 
-        options=["단어/표현 리스트", "플래시카드", "복습"], 
-        icons=["list-ul", "layer-backward", "arrow-repeat"], 
-        default_index=0
-    )
-    
+    st.markdown("<br><br><br><br><br>", unsafe_allow_html=True)
+    if current_user == "admin": 
+        with st.expander("👑 관리자 설정 (백업)", expanded=False):
+            if os.path.exists(USERS_FILE):
+                with open(USERS_FILE, "r", encoding="utf-8") as f:
+                    user_data = f.read()
+                st.download_button(label="📥 회원명부", data=user_data, file_name="users_backup.json", mime="application/json", use_container_width=True)
+                
+            if os.path.exists(PROGRESS_FILE):
+                with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
+                    prog_data = f.read()
+                st.download_button(label="📥 진도기록", data=prog_data, file_name="progress_backup.json", mime="application/json", use_container_width=True)
+
 # =====================================================================
-# 4. 구글 시트에서 '단어/표현' 데이터만 읽어오기
+# 4. 구글 시트에서 데이터 읽어오기 (회원님 전용 주소 반영 완료!)
 # =====================================================================
-# 🚨 아래 "" 안에 회원님의 구글 시트 마법의 링크(/export?format=xlsx)를 넣어주세요!
 excel_file = "https://docs.google.com/spreadsheets/d/152SWrgVZSegRnQ6AnslqWTRLsLJ5F_F3/export?format=xlsx"
 
 if 'voca_data' not in st.session_state or st.session_state.voca_data is None:
@@ -131,10 +125,10 @@ if 'voca_data' not in st.session_state or st.session_state.voca_data is None:
     
     try:
         df_word = pd.read_excel(excel_file, sheet_name="단어").fillna("")
-        df_word = df_word.iloc[::-1] # 최신순
+        df_word = df_word.iloc[::-1] 
         
         for _, row in df_word.iterrows():
-            en_word = str(row['단어'])
+            en_word = str(row['단어']).strip()
             if en_word == "": continue
             is_memo = user_progress.get(en_word, False) 
             
@@ -151,10 +145,10 @@ if 'voca_data' not in st.session_state or st.session_state.voca_data is None:
             data.append({"type": "단어", "en": en_word, "ko": str(row['뜻']), "note": str(row['비고']), "memorized": is_memo, "is_new": is_new})
             
         df_expr = pd.read_excel(excel_file, sheet_name="표현").fillna("")
-        df_expr = df_expr.iloc[::-1] # 최신순
+        df_expr = df_expr.iloc[::-1] 
         
         for _, row in df_expr.iterrows():
-            en_expr = str(row['표현'])
+            en_expr = str(row['표현']).strip()
             if en_expr == "": continue
             is_memo = user_progress.get(en_expr, False)
             
@@ -177,10 +171,9 @@ if 'voca_data' not in st.session_state or st.session_state.voca_data is None:
         st.session_state.last_updated = last_updated_date.strftime("%Y년 %m월 %d일") if last_updated_date else "기록 없음"
         
     except Exception as e:
-        st.error(f"🚨 구글 시트 데이터를 불러오지 못했습니다. 링크를 다시 확인해 주세요. 에러: {e}")
+        st.error(f"🚨 구글 시트 데이터를 불러오지 못했습니다. 에러: {e}")
         st.stop()
 
-# 💡 JSON 파일에 암기 상태 기록
 def update_memorized(word_en, is_memorized):
     for item in st.session_state.voca_data:
         if item['en'] == word_en:
@@ -190,7 +183,7 @@ def update_memorized(word_en, is_memorized):
     save_json(PROGRESS_FILE, progress_db)
 
 # =====================================================================
-# 5. 메인 화면 구성 (화면 출력부)
+# 5. 메인 화면 구성
 # =====================================================================
 if menu == "단어/표현 리스트":
     st.title(f"📖 {current_user}님의 단어장")
@@ -201,7 +194,6 @@ if menu == "단어/표현 리스트":
     with tab1:
         words = [item for item in st.session_state.voca_data if item['type'] == '단어' and not item['memorized']]
         for item in words:
-            # 💡 시인성을 극대화한 NEW 표시!
             title = f"🔴 [NEW] 🔤 {item['en']}" if item['is_new'] else f"🔤 {item['en']}"
             with st.expander(title):
                 st.write(f"➡️ **뜻:** {item['ko']}")
@@ -236,7 +228,6 @@ elif menu == "플래시카드":
 
         if st.session_state.fc_index < len(st.session_state.fc_queue):
             current_card = st.session_state.fc_queue[st.session_state.fc_index]
-            
             st.caption(f"진행 상황: {st.session_state.fc_index + 1} / {len(st.session_state.fc_queue)}")
             st.progress((st.session_state.fc_index) / len(st.session_state.fc_queue))
 
@@ -284,3 +275,39 @@ elif menu == "복습":
                     update_memorized(item['en'], False)
                     st.session_state.fc_queue = [] 
                     st.rerun()
+
+elif menu == "★ 핵심정리":
+    st.title("★ 핵심정리 (연상 암기 노트)")
+    st.info("💡 플래시카드에서 '암기 완료'한 단어와 표현은 이 노트에서 자동으로 숨겨집니다!")
+    
+    html_file = "VOCA.HTML"
+    
+    if os.path.exists(html_file):
+        memo_words = [item['en'].lower().strip() for item in st.session_state.voca_data if item['memorized']]
+        
+        with open(html_file, "r", encoding="utf-8") as f:
+            html_content = f.read()
+            
+        try:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(html_content, 'html.parser')
+            
+            for tr in soup.find_all('tr'):
+                tds = tr.find_all('td')
+                if tds:
+                    word_in_html = tds[0].get_text().lower().strip()
+                    is_memorized = any(m_word in word_in_html for m_word in memo_words if len(m_word) > 2)
+                    
+                    if is_memorized:
+                        tr.decompose() 
+            
+            import streamlit.components.v1 as components
+            components.html(str(soup), height=800, scrolling=True)
+            
+        except ImportError:
+            st.warning("🚨 HTML 자동 필터링을 위해 'beautifulsoup4'가 필요합니다. 터미널에 'pip install beautifulsoup4'를 쳐주세요. (현재는 원본이 보입니다.)")
+            import streamlit.components.v1 as components
+            components.html(html_content, height=800, scrolling=True)
+            
+    else:
+        st.error(f"🚨 '{html_file}' 파일을 찾을 수 없습니다. 파이썬 파일과 같은 폴더에 넣어주세요!")
