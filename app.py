@@ -103,7 +103,7 @@ with st.sidebar:
     # 💡 튕겨나갔던 메뉴판을 예쁜 스타일과 함께 완벽하게 복구했습니다.
     menu = option_menu(
         menu_title="📚 메뉴", 
-        options=["단어/표현 리스트", "플래시카드", "복습", "★ 핵심정리"], 
+        options=["단어/표현 리스트", "플래시카드", "복습", "핵심정리"], 
         icons=["list-ul", "layer-backward", "arrow-repeat", "star-fill"], 
         default_index=0,
         styles={
@@ -304,7 +304,7 @@ elif menu == "복습":
                     st.session_state.fc_queue = [] 
                     st.rerun()
 
-elif menu == "★ 핵심정리":
+elif menu == "핵심정리":
     st.title("★ 핵심정리 (연상 암기 노트)")
     st.info("💡 플래시카드에서 '암기 완료'한 단어와 표현은 이 노트에서 자동으로 숨겨집니다!")
     
