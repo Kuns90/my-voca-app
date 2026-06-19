@@ -78,17 +78,37 @@ if not st.session_state.logged_in:
     st.stop() 
 
 # =====================================================================
-# 3. 메인 앱 세팅 (메뉴바)
+# 3. 메인 앱 세팅 (메뉴바 & 👑 관리자 백업 기능)
 # =====================================================================
 current_user = st.session_state.user_id
 
 with st.sidebar:
     st.markdown(f"### 👤 **{current_user}** 님 환영합니다!")
+    
+    # 💡 만약 로그인한 사람이 창조주('admin')라면 백업 버튼을 보여줌!
+    if current_user == "admin": # 회원님이 쓰시는 실제 아이디로 "admin" 글자를 바꿔주세요.
+        st.write("---")
+        st.markdown("👑 **관리자 백업 메뉴**")
+        
+        # users.json 백업 버튼
+        if os.path.exists(USERS_FILE):
+            with open(USERS_FILE, "r", encoding="utf-8") as f:
+                user_data = f.read()
+            st.download_button(label="📥 회원명부 백업 (users.json)", data=user_data, file_name="users_backup.json", mime="application/json")
+            
+        # progress.json 백업 버튼
+        if os.path.exists(PROGRESS_FILE):
+            with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
+                prog_data = f.read()
+            st.download_button(label="📥 진도기록 백업 (progress.json)", data=prog_data, file_name="progress_backup.json", mime="application/json")
+        st.write("---")
+
     if st.button("🚪 로그아웃", use_container_width=True):
         st.session_state.logged_in = False
         st.session_state.user_id = ""
         st.session_state.voca_data = None 
         st.rerun()
+        
     st.divider()
     menu = option_menu(
         menu_title="📚 메뉴", 
@@ -96,7 +116,7 @@ with st.sidebar:
         icons=["list-ul", "layer-backward", "arrow-repeat"], 
         default_index=0
     )
-
+    
 # =====================================================================
 # 4. 구글 시트에서 '단어/표현' 데이터만 읽어오기
 # =====================================================================
