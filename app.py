@@ -111,7 +111,8 @@ with st.sidebar:
 # =====================================================================
 # 4. 엑셀 데이터 불러오기 (현재 로그인한 사용자 기준)
 # =====================================================================
-excel_file = "voca.xlsx"
+# 따옴표("") 안에 아까 복사한 주소를 넣어주세요!
+excel_file = "https://docs.google.com/spreadsheets/d/152SWrgVZSegRnQ6AnslqWTRLsLJ5F_F3/export?format=xlsx"
 
 if 'voca_data' not in st.session_state or st.session_state.voca_data is None:
     data = []
