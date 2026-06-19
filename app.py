@@ -6,15 +6,8 @@ import os
 import datetime
 import time
 from streamlit_option_menu import option_menu
-import extra_streamlit_components as stx
 
 st.set_page_config(page_title="모바일 단어장", layout="centered")
-
-# =====================================================================
-# 🍪 쿠키 매니저 실행 (캐시 에러 완벽 해결!)
-# =====================================================================
-# 복잡한 캐시 옵션 없이 고유 키(key)만 부여해서 바로 실행합니다.
-cookie_manager = stx.CookieManager(key="cookie_manager")
 
 # =====================================================================
 # 1. 데이터베이스(JSON) 관리 (회원명부 & 진도장)
@@ -35,10 +28,12 @@ def save_json(file_name, data):
 users_db = load_json(USERS_FILE)
 progress_db = load_json(PROGRESS_FILE)
 
-saved_user = cookie_manager.get(cookie="saved_user_id")
+# 💡 외부 쿠키 도구 대신, Streamlit 순정 기능인 'URL 쿼리 파라미터'를 확인합니다!
+saved_user = st.query_params.get("user")
 
 if 'logged_in' not in st.session_state:
     if saved_user and saved_user in users_db:
+        # 주소창에 ?user=admin 이 적혀있으면 바로 로그인 통과!
         st.session_state.logged_in = True
         st.session_state.user_id = saved_user
     else:
@@ -64,8 +59,9 @@ if not st.session_state.logged_in:
             clean_login_id = login_id_input.lower().strip() 
             
             if clean_login_id in users_db and users_db[clean_login_id] == login_pw:
-                expire_days = 30 if keep_logged_in else 1
-                cookie_manager.set("saved_user_id", clean_login_id, max_age=86400 * expire_days)
+                # 💡 '로그인 상태 유지' 체크 시, 주소창 뒤에 꼬리표를 달아줍니다. (예: /?user=admin)
+                if keep_logged_in:
+                    st.query_params["user"] = clean_login_id
                 
                 st.session_state.logged_in = True
                 st.session_state.user_id = clean_login_id
@@ -97,24 +93,34 @@ if not st.session_state.logged_in:
     st.stop() 
 
 # =====================================================================
-# 3. 메인 앱 세팅 (메뉴바 & 관리자 메뉴)
+# 3. 메인 앱 세팅 (메뉴바 복구 완료!)
 # =====================================================================
 current_user = st.session_state.user_id
 
 with st.sidebar:
     st.markdown(f"### 👤 **{current_user}** 님 환영합니다!")
     
+    # 💡 튕겨나갔던 메뉴판을 예쁜 스타일과 함께 완벽하게 복구했습니다.
     menu = option_menu(
         menu_title="📚 메뉴", 
         options=["단어/표현 리스트", "플래시카드", "복습", "★ 핵심정리"], 
         icons=["list-ul", "layer-backward", "arrow-repeat", "star-fill"], 
-        default_index=0
+        default_index=0,
+        styles={
+            "container": {"padding": "5!important", "background-color": "#f8f9fa"},
+            "icon": {"color": "#ff7f0e", "font-size": "25px"}, 
+            "nav-link": {"font-size": "16px", "text-align": "left", "margin":"0px", "--hover-color": "#e0e0e0"},
+            "nav-link-selected": {"background-color": "#1f77b4", "color": "white"},
+        }
     )
     
     st.divider()
     
     if st.button("🚪 로그아웃", use_container_width=True):
-        cookie_manager.delete("saved_user_id")
+        # 💡 로그아웃 시 주소창 꼬리표 삭제!
+        if "user" in st.query_params:
+            del st.query_params["user"]
+            
         st.session_state.logged_in = False
         st.session_state.user_id = ""
         st.session_state.voca_data = None 

@@ -4,4 +4,3 @@ streamlit-option-menu
 gspread
 oauth2client
 beautifulsoup4
-extra-streamlit-components
