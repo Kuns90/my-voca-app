@@ -87,17 +87,19 @@ if not st.session_state.logged_in:
                 progress_db[clean_new_id] = {}
                 save_json(PROGRESS_FILE, progress_db)
                 st.success(f"🎉 가입 완료! 이제 로그인해 주세요.")
+                
+    # 💡 로그인 화면 하단에도 개발자 서명 추가
+    st.markdown("<br><br><div style='text-align: center; color: #bdc3c7; font-size: 13px;'>✨ Designed & Developed by <b>SK Lee</b></div>", unsafe_allow_html=True)
     st.stop() 
 
 # =====================================================================
-# 3. 메인 앱 세팅 (메뉴바)
+# 3. 메인 앱 세팅 (메뉴바 & 개발자 서명)
 # =====================================================================
 current_user = st.session_state.user_id
 
 with st.sidebar:
     st.markdown(f"### 👤 **{current_user}** 님 환영합니다!")
     
-    # 💡 텍스트 중복 별(★) 제거 반영 완료
     menu = option_menu(
         menu_title="📚 메뉴", 
         options=["단어/표현 리스트", "플래시카드", "복습", "핵심정리"], 
@@ -123,7 +125,7 @@ with st.sidebar:
         time.sleep(0.5)
         st.rerun()
         
-    st.markdown("<br><br><br><br><br>", unsafe_allow_html=True)
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
     if current_user == "admin": 
         with st.expander("👑 관리자 설정 (백업)", expanded=False):
             if os.path.exists(USERS_FILE):
@@ -135,6 +137,9 @@ with st.sidebar:
                 with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
                     prog_data = f.read()
                 st.download_button(label="📥 진도기록", data=prog_data, file_name="progress_backup.json", mime="application/json", use_container_width=True)
+
+    # 💡 사이드바 맨 아래 개발자 SK Lee 서명 추가!
+    st.markdown("<br><div style='text-align: center; color: #bdc3c7; font-size: 13px;'>✨ Designed & Developed by<br><b>SK Lee</b></div>", unsafe_allow_html=True)
 
 # =====================================================================
 # 4. 구글 시트에서 데이터 읽어오기
@@ -238,12 +243,11 @@ if menu == "단어/표현 리스트":
                 st.write(f"➡️ **뜻:** {item['ko']}")
 
 elif menu == "플래시카드":
-    # 💡 제목과 리셋 버튼을 나란히 배치했습니다!
     col_title, col_reset = st.columns([7, 3])
     with col_title:
         st.title("🗂️ 플래시카드")
     with col_reset:
-        st.markdown("<br>", unsafe_allow_html=True) # 줄맞춤
+        st.markdown("<br>", unsafe_allow_html=True) 
         if st.button("🔄 리셋 (처음부터)", use_container_width=True):
             st.session_state.fc_queue = []
             st.session_state.fc_index = 0
@@ -336,8 +340,6 @@ elif menu == "핵심정리":
                     if is_memorized:
                         tr.decompose() 
             
-            # 💡 2중 스크롤 완벽 해결! 
-            # iframe(components.html)을 버리고, 앱 화면에 HTML 코드를 직접 녹여냅니다.
             style_tag = soup.find('style')
             style_str = str(style_tag) if style_tag else ""
             
