@@ -28,12 +28,10 @@ def save_json(file_name, data):
 users_db = load_json(USERS_FILE)
 progress_db = load_json(PROGRESS_FILE)
 
-# 💡 외부 쿠키 도구 대신, Streamlit 순정 기능인 'URL 쿼리 파라미터'를 확인합니다!
 saved_user = st.query_params.get("user")
 
 if 'logged_in' not in st.session_state:
     if saved_user and saved_user in users_db:
-        # 주소창에 ?user=admin 이 적혀있으면 바로 로그인 통과!
         st.session_state.logged_in = True
         st.session_state.user_id = saved_user
     else:
@@ -59,7 +57,6 @@ if not st.session_state.logged_in:
             clean_login_id = login_id_input.lower().strip() 
             
             if clean_login_id in users_db and users_db[clean_login_id] == login_pw:
-                # 💡 '로그인 상태 유지' 체크 시, 주소창 뒤에 꼬리표를 달아줍니다. (예: /?user=admin)
                 if keep_logged_in:
                     st.query_params["user"] = clean_login_id
                 
@@ -93,14 +90,14 @@ if not st.session_state.logged_in:
     st.stop() 
 
 # =====================================================================
-# 3. 메인 앱 세팅 (메뉴바 복구 완료!)
+# 3. 메인 앱 세팅 (메뉴바)
 # =====================================================================
 current_user = st.session_state.user_id
 
 with st.sidebar:
     st.markdown(f"### 👤 **{current_user}** 님 환영합니다!")
     
-    # 💡 튕겨나갔던 메뉴판을 예쁜 스타일과 함께 완벽하게 복구했습니다.
+    # 💡 텍스트 중복 별(★) 제거 반영 완료
     menu = option_menu(
         menu_title="📚 메뉴", 
         options=["단어/표현 리스트", "플래시카드", "복습", "핵심정리"], 
@@ -117,7 +114,6 @@ with st.sidebar:
     st.divider()
     
     if st.button("🚪 로그아웃", use_container_width=True):
-        # 💡 로그아웃 시 주소창 꼬리표 삭제!
         if "user" in st.query_params:
             del st.query_params["user"]
             
@@ -242,7 +238,18 @@ if menu == "단어/표현 리스트":
                 st.write(f"➡️ **뜻:** {item['ko']}")
 
 elif menu == "플래시카드":
-    st.title("🗂️ 플래시카드")
+    # 💡 제목과 리셋 버튼을 나란히 배치했습니다!
+    col_title, col_reset = st.columns([7, 3])
+    with col_title:
+        st.title("🗂️ 플래시카드")
+    with col_reset:
+        st.markdown("<br>", unsafe_allow_html=True) # 줄맞춤
+        if st.button("🔄 리셋 (처음부터)", use_container_width=True):
+            st.session_state.fc_queue = []
+            st.session_state.fc_index = 0
+            st.session_state.is_flipped = False
+            st.rerun()
+
     unmemorized = [item for item in st.session_state.voca_data if not item['memorized']]
     
     if len(unmemorized) == 0:
@@ -285,7 +292,7 @@ elif menu == "플래시카드":
                         st.rerun()
         else:
             st.success("이번 세트의 플래시카드를 다 보셨습니다!")
-            if st.button("🔄 다시 하기"):
+            if st.button("🔄 다시 하기 (오답 위주)"):
                 st.session_state.fc_queue = []
                 st.rerun()
 
@@ -305,7 +312,7 @@ elif menu == "복습":
                     st.rerun()
 
 elif menu == "핵심정리":
-    st.title("★ 핵심정리 (연상 암기 노트)")
+    st.title("핵심정리 (연상 암기 노트)")
     st.info("💡 플래시카드에서 '암기 완료'한 단어와 표현은 이 노트에서 자동으로 숨겨집니다!")
     
     html_file = "VOCA.HTML"
@@ -329,13 +336,19 @@ elif menu == "핵심정리":
                     if is_memorized:
                         tr.decompose() 
             
-            import streamlit.components.v1 as components
-            components.html(str(soup), height=800, scrolling=True)
+            # 💡 2중 스크롤 완벽 해결! 
+            # iframe(components.html)을 버리고, 앱 화면에 HTML 코드를 직접 녹여냅니다.
+            style_tag = soup.find('style')
+            style_str = str(style_tag) if style_tag else ""
+            
+            body_tag = soup.find('body')
+            body_str = "".join([str(tag) for tag in body_tag.contents]) if body_tag else str(soup)
+            
+            st.markdown(style_str + body_str, unsafe_allow_html=True)
             
         except ImportError:
-            st.warning("🚨 HTML 자동 필터링을 위해 'beautifulsoup4'가 필요합니다. 터미널에 'pip install beautifulsoup4'를 쳐주세요. (현재는 원본이 보입니다.)")
-            import streamlit.components.v1 as components
-            components.html(html_content, height=800, scrolling=True)
+            st.warning("🚨 HTML 자동 필터링을 위해 'beautifulsoup4'가 필요합니다.")
+            st.markdown(html_content, unsafe_allow_html=True)
             
     else:
         st.error(f"🚨 '{html_file}' 파일을 찾을 수 없습니다. 파이썬 파일과 같은 폴더에 넣어주세요!")
