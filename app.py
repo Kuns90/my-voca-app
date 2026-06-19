@@ -6,18 +6,15 @@ import os
 import datetime
 import time
 from streamlit_option_menu import option_menu
-import extra_streamlit_components as stx # 💡 쿠키 매니저 도구 추가!
+import extra_streamlit_components as stx
 
 st.set_page_config(page_title="모바일 단어장", layout="centered")
 
 # =====================================================================
-# 🍪 쿠키 매니저 실행 (자동 로그인의 핵심)
+# 🍪 쿠키 매니저 실행 (캐시 에러 완벽 해결!)
 # =====================================================================
-@st.cache_resource
-def get_manager():
-    return stx.CookieManager()
-
-cookie_manager = get_manager()
+# 복잡한 캐시 옵션 없이 고유 키(key)만 부여해서 바로 실행합니다.
+cookie_manager = stx.CookieManager(key="cookie_manager")
 
 # =====================================================================
 # 1. 데이터베이스(JSON) 관리 (회원명부 & 진도장)
@@ -38,12 +35,10 @@ def save_json(file_name, data):
 users_db = load_json(USERS_FILE)
 progress_db = load_json(PROGRESS_FILE)
 
-# 💡 내 브라우저에 저장된 'saved_user_id' 쿠키가 있는지 확인
 saved_user = cookie_manager.get(cookie="saved_user_id")
 
 if 'logged_in' not in st.session_state:
     if saved_user and saved_user in users_db:
-        # 쿠키가 있으면 즉시 로그인 상태로 전환!
         st.session_state.logged_in = True
         st.session_state.user_id = saved_user
     else:
@@ -63,20 +58,18 @@ if not st.session_state.logged_in:
         login_id_input = st.text_input("아이디 (ID)")
         login_pw = st.text_input("비밀번호 (Password)", type="password")
         
-        # 💡 자동 로그인 체크박스 추가
         keep_logged_in = st.checkbox("로그인 상태 유지", value=True)
         
         if st.button("로그인", use_container_width=True, type="primary"):
             clean_login_id = login_id_input.lower().strip() 
             
             if clean_login_id in users_db and users_db[clean_login_id] == login_pw:
-                # 로그인 성공 시 쿠키 굽기 (체크했으면 30일, 안 했으면 하루)
                 expire_days = 30 if keep_logged_in else 1
                 cookie_manager.set("saved_user_id", clean_login_id, max_age=86400 * expire_days)
                 
                 st.session_state.logged_in = True
                 st.session_state.user_id = clean_login_id
-                time.sleep(0.5) # 쿠키가 구워질 아주 짧은 시간을 벌어줍니다.
+                time.sleep(0.5) 
                 st.rerun()
             else:
                 st.error("🚨 아이디 또는 비밀번호가 틀렸습니다.")
@@ -121,7 +114,6 @@ with st.sidebar:
     st.divider()
     
     if st.button("🚪 로그아웃", use_container_width=True):
-        # 💡 로그아웃 시 브라우저에 저장된 쿠키(도장)를 삭제합니다!
         cookie_manager.delete("saved_user_id")
         st.session_state.logged_in = False
         st.session_state.user_id = ""
