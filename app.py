@@ -4,9 +4,20 @@ import random
 import json
 import os
 import datetime
+import time
 from streamlit_option_menu import option_menu
+import extra_streamlit_components as stx # 💡 쿠키 매니저 도구 추가!
 
 st.set_page_config(page_title="모바일 단어장", layout="centered")
+
+# =====================================================================
+# 🍪 쿠키 매니저 실행 (자동 로그인의 핵심)
+# =====================================================================
+@st.cache_resource(experimental_allow_widgets=True)
+def get_manager():
+    return stx.CookieManager()
+
+cookie_manager = get_manager()
 
 # =====================================================================
 # 1. 데이터베이스(JSON) 관리 (회원명부 & 진도장)
@@ -27,9 +38,17 @@ def save_json(file_name, data):
 users_db = load_json(USERS_FILE)
 progress_db = load_json(PROGRESS_FILE)
 
+# 💡 내 브라우저에 저장된 'saved_user_id' 쿠키가 있는지 확인
+saved_user = cookie_manager.get(cookie="saved_user_id")
+
 if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-    st.session_state.user_id = ""
+    if saved_user and saved_user in users_db:
+        # 쿠키가 있으면 즉시 로그인 상태로 전환!
+        st.session_state.logged_in = True
+        st.session_state.user_id = saved_user
+    else:
+        st.session_state.logged_in = False
+        st.session_state.user_id = ""
 
 # =====================================================================
 # 2. 🔐 로그인 & 회원가입 화면
@@ -44,12 +63,20 @@ if not st.session_state.logged_in:
         login_id_input = st.text_input("아이디 (ID)")
         login_pw = st.text_input("비밀번호 (Password)", type="password")
         
+        # 💡 자동 로그인 체크박스 추가
+        keep_logged_in = st.checkbox("로그인 상태 유지", value=True)
+        
         if st.button("로그인", use_container_width=True, type="primary"):
             clean_login_id = login_id_input.lower().strip() 
             
             if clean_login_id in users_db and users_db[clean_login_id] == login_pw:
+                # 로그인 성공 시 쿠키 굽기 (체크했으면 30일, 안 했으면 하루)
+                expire_days = 30 if keep_logged_in else 1
+                cookie_manager.set("saved_user_id", clean_login_id, max_age=86400 * expire_days)
+                
                 st.session_state.logged_in = True
                 st.session_state.user_id = clean_login_id
+                time.sleep(0.5) # 쿠키가 구워질 아주 짧은 시간을 벌어줍니다.
                 st.rerun()
             else:
                 st.error("🚨 아이디 또는 비밀번호가 틀렸습니다.")
@@ -77,7 +104,7 @@ if not st.session_state.logged_in:
     st.stop() 
 
 # =====================================================================
-# 3. 메인 앱 세팅 (메뉴바 & 👑 관리자 메뉴 맨 밑으로 이동)
+# 3. 메인 앱 세팅 (메뉴바 & 관리자 메뉴)
 # =====================================================================
 current_user = st.session_state.user_id
 
@@ -85,8 +112,8 @@ with st.sidebar:
     st.markdown(f"### 👤 **{current_user}** 님 환영합니다!")
     
     menu = option_menu(
-        menu_title=" Menu", 
-        options=["단어/표현 리스트", "플래시카드", "복습", "핵심정리"], 
+        menu_title="📚 메뉴", 
+        options=["단어/표현 리스트", "플래시카드", "복습", "★ 핵심정리"], 
         icons=["list-ul", "layer-backward", "arrow-repeat", "star-fill"], 
         default_index=0
     )
@@ -94,9 +121,12 @@ with st.sidebar:
     st.divider()
     
     if st.button("🚪 로그아웃", use_container_width=True):
+        # 💡 로그아웃 시 브라우저에 저장된 쿠키(도장)를 삭제합니다!
+        cookie_manager.delete("saved_user_id")
         st.session_state.logged_in = False
         st.session_state.user_id = ""
         st.session_state.voca_data = None 
+        time.sleep(0.5)
         st.rerun()
         
     st.markdown("<br><br><br><br><br>", unsafe_allow_html=True)
@@ -113,7 +143,7 @@ with st.sidebar:
                 st.download_button(label="📥 진도기록", data=prog_data, file_name="progress_backup.json", mime="application/json", use_container_width=True)
 
 # =====================================================================
-# 4. 구글 시트에서 데이터 읽어오기 (회원님 전용 주소 반영 완료!)
+# 4. 구글 시트에서 데이터 읽어오기
 # =====================================================================
 excel_file = "https://docs.google.com/spreadsheets/d/152SWrgVZSegRnQ6AnslqWTRLsLJ5F_F3/export?format=xlsx"
 
