@@ -3,13 +3,13 @@ import pandas as pd
 import random
 import json
 import os
-from streamlit_option_menu import option_menu
 import datetime
+from streamlit_option_menu import option_menu
 
 st.set_page_config(page_title="모바일 단어장", layout="centered")
 
 # =====================================================================
-# 1. 데이터베이스(JSON) 관리 (회원명부 & 진도장)
+# 1. 데이터베이스(JSON) 관리 (회원명부 & 진도장) -> 쉬운 방법으로 복구!
 # =====================================================================
 USERS_FILE = "users.json"
 PROGRESS_FILE = "progress.json"
@@ -32,7 +32,7 @@ if 'logged_in' not in st.session_state:
     st.session_state.user_id = ""
 
 # =====================================================================
-# 2. 🔐 로그인 & 회원가입 화면 (대소문자 무시 적용)
+# 2. 🔐 로그인 & 회원가입 화면
 # =====================================================================
 if not st.session_state.logged_in:
     st.markdown("<h1 style='text-align: center;'>🔐 나만의 단어장</h1>", unsafe_allow_html=True)
@@ -45,7 +45,6 @@ if not st.session_state.logged_in:
         login_pw = st.text_input("비밀번호 (Password)", type="password")
         
         if st.button("로그인", use_container_width=True, type="primary"):
-            # 💡 입력받은 아이디를 무조건 소문자로 변환하고 양옆 공백 제거
             clean_login_id = login_id_input.lower().strip() 
             
             if clean_login_id in users_db and users_db[clean_login_id] == login_pw:
@@ -61,7 +60,6 @@ if not st.session_state.logged_in:
         new_pw_check = st.text_input("비밀번호 확인", type="password")
         
         if st.button("회원가입 하기", use_container_width=True):
-            # 💡 새 아이디도 무조건 소문자로 변환
             clean_new_id = new_id_input.lower().strip()
             
             if clean_new_id in users_db:
@@ -71,6 +69,7 @@ if not st.session_state.logged_in:
             elif len(clean_new_id) < 2 or len(new_pw) < 2:
                 st.warning("아이디와 비밀번호는 2글자 이상이어야 합니다.")
             else:
+                # 💡 JSON 파일에 가입 정보 저장
                 users_db[clean_new_id] = new_pw
                 save_json(USERS_FILE, users_db)
                 progress_db[clean_new_id] = {}
@@ -79,7 +78,7 @@ if not st.session_state.logged_in:
     st.stop() 
 
 # =====================================================================
-# 3. 사이드바: 메뉴 및 로그아웃
+# 3. 메인 앱 세팅 (메뉴바)
 # =====================================================================
 current_user = st.session_state.user_id
 
@@ -90,27 +89,18 @@ with st.sidebar:
         st.session_state.user_id = ""
         st.session_state.voca_data = None 
         st.rerun()
-        
     st.divider()
-
     menu = option_menu(
         menu_title="📚 메뉴", 
         options=["단어/표현 리스트", "플래시카드", "복습"], 
         icons=["list-ul", "layer-backward", "arrow-repeat"], 
-        menu_icon="cast", 
-        default_index=0,
-        styles={
-            "container": {"padding": "5!important", "background-color": "#f8f9fa"},
-            "icon": {"color": "#ff7f0e", "font-size": "25px"}, 
-            "nav-link": {"font-size": "16px", "text-align": "left", "margin":"0px", "--hover-color": "#e0e0e0"},
-            "nav-link-selected": {"background-color": "#1f77b4", "color": "white"},
-        }
+        default_index=0
     )
 
 # =====================================================================
-# 4. 엑셀 데이터 불러오기 (3종 세트 + 시트명 '단어' 복구)
+# 4. 구글 시트에서 '단어/표현' 데이터만 읽어오기
 # =====================================================================
-# 🚨 구글 시트 링크를 쓰신다면 아래 이름을 링크로 바꿔주세요!
+# 🚨 아래 "" 안에 회원님의 구글 시트 마법의 링크(/export?format=xlsx)를 넣어주세요!
 excel_file = "https://docs.google.com/spreadsheets/d/152SWrgVZSegRnQ6AnslqWTRLsLJ5F_F3/export?format=xlsx"
 
 if 'voca_data' not in st.session_state or st.session_state.voca_data is None:
@@ -120,12 +110,12 @@ if 'voca_data' not in st.session_state or st.session_state.voca_data is None:
     today = datetime.datetime.now() 
     
     try:
-        # 💡 시트명을 다시 "단어"로 수정
         df_word = pd.read_excel(excel_file, sheet_name="단어").fillna("")
-        df_word = df_word.iloc[::-1] 
+        df_word = df_word.iloc[::-1] # 최신순
         
         for _, row in df_word.iterrows():
-            en_word = row['단어']
+            en_word = str(row['단어'])
+            if en_word == "": continue
             is_memo = user_progress.get(en_word, False) 
             
             is_new = False
@@ -138,14 +128,14 @@ if 'voca_data' not in st.session_state or st.session_state.voca_data is None:
                         last_updated_date = date_obj
                 except:
                     pass
-            
-            data.append({"type": "단어", "en": en_word, "ko": row['뜻'], "note": row['비고'], "memorized": is_memo, "is_new": is_new})
+            data.append({"type": "단어", "en": en_word, "ko": str(row['뜻']), "note": str(row['비고']), "memorized": is_memo, "is_new": is_new})
             
         df_expr = pd.read_excel(excel_file, sheet_name="표현").fillna("")
-        df_expr = df_expr.iloc[::-1] 
+        df_expr = df_expr.iloc[::-1] # 최신순
         
         for _, row in df_expr.iterrows():
-            en_expr = row['표현']
+            en_expr = str(row['표현'])
+            if en_expr == "": continue
             is_memo = user_progress.get(en_expr, False)
             
             is_new = False
@@ -158,23 +148,19 @@ if 'voca_data' not in st.session_state or st.session_state.voca_data is None:
                         last_updated_date = date_obj
                 except:
                     pass
-
-            data.append({"type": "표현", "en": en_expr, "ko": row['뜻'], "note": row['비고'], "memorized": is_memo, "is_new": is_new})
+            data.append({"type": "표현", "en": en_expr, "ko": str(row['뜻']), "note": str(row['비고']), "memorized": is_memo, "is_new": is_new})
             
         st.session_state.voca_data = data
         st.session_state.fc_queue = []
         st.session_state.fc_index = 0
         st.session_state.is_flipped = False
-        
-        if last_updated_date:
-            st.session_state.last_updated = last_updated_date.strftime("%Y년 %m월 %d일")
-        else:
-            st.session_state.last_updated = "기록 없음"
+        st.session_state.last_updated = last_updated_date.strftime("%Y년 %m월 %d일") if last_updated_date else "기록 없음"
         
     except Exception as e:
-        st.error(f"🚨 데이터를 불러오지 못했습니다. 에러 원인: {e}")
+        st.error(f"🚨 구글 시트 데이터를 불러오지 못했습니다. 링크를 다시 확인해 주세요. 에러: {e}")
         st.stop()
 
+# 💡 JSON 파일에 암기 상태 기록
 def update_memorized(word_en, is_memorized):
     for item in st.session_state.voca_data:
         if item['en'] == word_en:
@@ -184,7 +170,7 @@ def update_memorized(word_en, is_memorized):
     save_json(PROGRESS_FILE, progress_db)
 
 # =====================================================================
-# 5. 메인 화면 구성
+# 5. 메인 화면 구성 (화면 출력부)
 # =====================================================================
 if menu == "단어/표현 리스트":
     st.title(f"📖 {current_user}님의 단어장")
@@ -195,7 +181,8 @@ if menu == "단어/표현 리스트":
     with tab1:
         words = [item for item in st.session_state.voca_data if item['type'] == '단어' and not item['memorized']]
         for item in words:
-            title = f"🆕 🔤 {item['en']}" if item['is_new'] else f"🔤 {item['en']}"
+            # 💡 시인성을 극대화한 NEW 표시!
+            title = f"🔴 [NEW] 🔤 {item['en']}" if item['is_new'] else f"🔤 {item['en']}"
             with st.expander(title):
                 st.write(f"➡️ **뜻:** {item['ko']}")
                 if item['note']: st.info(f"📝 {item['note']}")
@@ -203,7 +190,7 @@ if menu == "단어/표현 리스트":
     with tab2:
         exprs = [item for item in st.session_state.voca_data if item['type'] == '표현' and not item['memorized']]
         for item in exprs:
-            title = f"🆕 🗣️ {item['en']}" if item['is_new'] else f"🗣️ {item['en']}"
+            title = f"🔴 [NEW] 🗣️ {item['en']}" if item['is_new'] else f"🗣️ {item['en']}"
             with st.expander(title):
                 st.write(f"➡️ **뜻:** {item['ko']}")
                 if item['note']: st.info(f"📝 {item['note']}")

@@ -1,3 +1,5 @@
 pandas
 openpyxl
 streamlit-option-menu
+gspread
+oauth2client
