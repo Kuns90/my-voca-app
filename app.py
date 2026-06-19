@@ -14,7 +14,7 @@ st.set_page_config(page_title="모바일 단어장", layout="centered")
 # 🔐 1. 안전한 구글 비밀 금고(Secrets) 및 시트 연결 세팅
 # =====================================================================
 # 회원님의 고유 스프레드시트 ID
-SHEET_ID = "152SWrgVZSegRnQ6AnslqWTRLsLJ5F_F3"
+SHEET_ID = "1IpZSaCymPQS0sIIrm_TmKnZLoWFvhYFEcxSMlsrn_0g"
 
 @st.cache_resource
 def init_connection():
