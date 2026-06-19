@@ -1,6 +1,4 @@
-pandas
-openpyxl
-streamlit-option-menu
 gspread
-oauth2client
+pandas
 beautifulsoup4
+streamlit-option-menu

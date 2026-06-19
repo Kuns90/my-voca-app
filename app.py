@@ -6,28 +6,60 @@ import os
 import datetime
 import time
 from streamlit_option_menu import option_menu
+import gspread
 
 st.set_page_config(page_title="모바일 단어장", layout="centered")
 
 # =====================================================================
-# 1. 데이터베이스(JSON) 관리 (회원명부 & 진도장)
+# 🔐 1. 안전한 구글 비밀 금고(Secrets) 및 시트 연결 세팅
 # =====================================================================
-USERS_FILE = "users.json"
-PROGRESS_FILE = "progress.json"
+# 회원님의 고유 스프레드시트 ID
+SHEET_ID = "152SWrgVZSegRnQ6AnslqWTRLsLJ5F_F3"
 
-def load_json(file_name):
-    if os.path.exists(file_name):
-        with open(file_name, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
+@st.cache_resource
+def init_connection():
+    # Streamlit 금고에 넣어둔 JSON 신분증 코드를 안전하게 읽어옴
+    creds_dict = json.loads(st.secrets["google_credentials"])
+    gc = gspread.service_account_from_dict(creds_dict)
+    return gc.open_by_key(SHEET_ID)
 
-def save_json(file_name, data):
-    with open(file_name, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+try:
+    doc = init_connection()
+    sheet_word = doc.worksheet("단어")
+    sheet_expr = doc.worksheet("표현")
+    sheet_users = doc.worksheet("회원명부")
+    sheet_progress = doc.worksheet("진도기록")
+except Exception as e:
+    st.error(f"🚨 구글 시트 금고 연결 실패! Secrets 세팅이나 시트 공유를 확인해 주세요. 에러: {e}")
+    st.stop()
 
-users_db = load_json(USERS_FILE)
-progress_db = load_json(PROGRESS_FILE)
+# =====================================================================
+# 📊 2. 구글 시트 실시간 데이터 처리 함수들
+# =====================================================================
+def load_users():
+    records = sheet_users.get_all_records()
+    users_db = {}
+    for r in records:
+        uid = str(r.get("아이디", "")).strip().lower()
+        pw = str(r.get("비밀번호", "")).strip()
+        if uid:
+            users_db[uid] = pw
+    return users_db
 
+def load_progress(user_id):
+    records = sheet_progress.get_all_records()
+    user_prog = {}
+    for r in records:
+        if str(r.get("아이디", "")).strip().lower() == user_id:
+            word = str(r.get("단어", "")).strip()
+            is_memo = str(r.get("암기여부", "")).strip().lower() in ['true', '1', 'yes']
+            user_prog[word] = is_memo
+    return user_prog
+
+# 실시간 유저 정보 로드
+users_db = load_users()
+
+# 주소창(URL) 파라미터로 자동 로그인 감지
 saved_user = st.query_params.get("user")
 
 if 'logged_in' not in st.session_state:
@@ -39,7 +71,7 @@ if 'logged_in' not in st.session_state:
         st.session_state.user_id = ""
 
 # =====================================================================
-# 2. 🔐 로그인 & 회원가입 화면
+# 3. 🔐 로그인 & 회원가입 화면 (구글 시트에 실시간 반영)
 # =====================================================================
 if not st.session_state.logged_in:
     st.markdown("<h1 style='text-align: center;'>🔐 나만의 단어장</h1>", unsafe_allow_html=True)
@@ -50,7 +82,6 @@ if not st.session_state.logged_in:
     with tab_login:
         login_id_input = st.text_input("아이디 (ID)")
         login_pw = st.text_input("비밀번호 (Password)", type="password")
-        
         keep_logged_in = st.checkbox("로그인 상태 유지", value=True)
         
         if st.button("로그인", use_container_width=True, type="primary"):
@@ -82,24 +113,24 @@ if not st.session_state.logged_in:
             elif len(clean_new_id) < 2 or len(new_pw) < 2:
                 st.warning("아이디와 비밀번호는 2글자 이상이어야 합니다.")
             else:
-                users_db[clean_new_id] = new_pw
-                save_json(USERS_FILE, users_db)
-                progress_db[clean_new_id] = {}
-                save_json(PROGRESS_FILE, progress_db)
+                # 💡 구글 시트 '회원명부' 탭 맨 아랫줄에 실시간 영구 기록!
+                sheet_users.append_row([clean_new_id, new_pw])
                 st.success(f"🎉 가입 완료! 이제 로그인해 주세요.")
+                time.sleep(1)
+                st.rerun()
                 
-    # 💡 로그인 화면 하단에도 개발자 서명 추가
     st.markdown("<br><br><div style='text-align: center; color: #bdc3c7; font-size: 13px;'>✨ Designed & Developed by <b>SK Lee</b></div>", unsafe_allow_html=True)
     st.stop() 
 
 # =====================================================================
-# 3. 메인 앱 세팅 (메뉴바 & 개발자 서명)
+# 4. 메인 앱 세팅 (사이드바 메뉴 및 👑 실시간 관리자 대시보드)
 # =====================================================================
 current_user = st.session_state.user_id
 
 with st.sidebar:
     st.markdown(f"### 👤 **{current_user}** 님 환영합니다!")
     
+    # 💡 별 기호 중복 제거 완료
     menu = option_menu(
         menu_title="📚 메뉴", 
         options=["단어/표현 리스트", "플래시카드", "복습", "핵심정리"], 
@@ -118,7 +149,6 @@ with st.sidebar:
     if st.button("🚪 로그아웃", use_container_width=True):
         if "user" in st.query_params:
             del st.query_params["user"]
-            
         st.session_state.logged_in = False
         st.session_state.user_id = ""
         st.session_state.voca_data = None 
@@ -126,72 +156,100 @@ with st.sidebar:
         st.rerun()
         
     st.markdown("<br><br><br>", unsafe_allow_html=True)
+    
+    # 👑 덮어쓰기 위험이 없는 진짜 실시간 관리자 기능 오픈!
     if current_user == "admin": 
-        with st.expander("👑 관리자 설정 (백업)", expanded=False):
-            if os.path.exists(USERS_FILE):
-                with open(USERS_FILE, "r", encoding="utf-8") as f:
-                    user_data = f.read()
-                st.download_button(label="📥 회원명부", data=user_data, file_name="users_backup.json", mime="application/json", use_container_width=True)
+        with st.sidebar.expander("👑 관리자 계정 마스터", expanded=False):
+            st.write("👥 **현재 가입자 명부**")
+            for u, p in users_db.items():
+                if u == "admin": continue
+                st.text(f"• {u} (비번: {p})")
                 
-            if os.path.exists(PROGRESS_FILE):
-                with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
-                    prog_data = f.read()
-                st.download_button(label="📥 진도기록", data=prog_data, file_name="progress_backup.json", mime="application/json", use_container_width=True)
+            st.divider()
+            st.write("🔧 **회원 정보 즉시 제어**")
+            target_user = st.text_input("대상 ID 입력", key="adm_target").strip().lower()
+            adm_action = st.selectbox("수행할 명령", ["선택하세요", "비밀번호 즉시 변경", "계정 영구 삭제"], key="adm_act")
+            
+            if adm_action == "비밀번호 즉시 변경":
+                adm_new_pw = st.text_input("새 변경 비번", key="adm_pw")
+                if st.button("변경 명령 실행", use_container_width=True):
+                    if target_user in users_db:
+                        user_records = sheet_users.get_all_records()
+                        for idx, r in enumerate(user_records):
+                            if str(r.get("아이디","")).strip().lower() == target_user:
+                                sheet_users.update_cell(idx + 2, 2, adm_new_pw) # 2열(비밀번호) 수정
+                                st.success(f"🔑 {target_user}님 비번 변경 완료!")
+                                time.sleep(1)
+                                st.rerun()
+                    else:
+                        st.error("존재하지 않는 ID입니다.")
+                        
+            elif adm_action == "계정 영구 삭제":
+                if st.button("❌ 선택 계정 추방", use_container_width=True, type="primary"):
+                    if target_user in users_db:
+                        user_records = sheet_users.get_all_records()
+                        for idx, r in enumerate(user_records):
+                            if str(r.get("아이디","")).strip().lower() == target_user:
+                                sheet_users.delete_rows(idx + 2) # 구글 시트에서 행 강제 삭제
+                                st.success(f"🗑️ {target_user} 계정이 영구 삭제되었습니다.")
+                                time.sleep(1)
+                                st.rerun()
+                    else:
+                        st.error("존재하지 않는 ID입니다.")
 
-    # 💡 사이드바 맨 아래 개발자 SK Lee 서명 추가!
     st.markdown("<br><div style='text-align: center; color: #bdc3c7; font-size: 13px;'>✨ Designed & Developed by<br><b>SK Lee</b></div>", unsafe_allow_html=True)
 
 # =====================================================================
-# 4. 구글 시트에서 데이터 읽어오기
+# 5. 구글 시트에서 실시간 데이터 로드
 # =====================================================================
-excel_file = "https://docs.google.com/spreadsheets/d/152SWrgVZSegRnQ6AnslqWTRLsLJ5F_F3/export?format=xlsx"
-
 if 'voca_data' not in st.session_state or st.session_state.voca_data is None:
     data = []
-    user_progress = progress_db.get(current_user, {}) 
+    user_progress = load_progress(current_user) 
     last_updated_date = None 
     today = datetime.datetime.now() 
     
     try:
-        df_word = pd.read_excel(excel_file, sheet_name="단어").fillna("")
-        df_word = df_word.iloc[::-1] 
+        word_records = sheet_word.get_all_records()
+        expr_records = sheet_expr.get_all_records()
         
-        for _, row in df_word.iterrows():
-            en_word = str(row['단어']).strip()
+        word_records.reverse() 
+        expr_records.reverse()
+        
+        for row in word_records:
+            en_word = str(row.get('단어', '')).strip()
             if en_word == "": continue
             is_memo = user_progress.get(en_word, False) 
             
             is_new = False
-            if '등록일' in row and row['등록일'] != "":
+            reg_date = row.get('등록일', '')
+            if reg_date != "":
                 try:
-                    date_obj = pd.to_datetime(row['등록일'])
+                    date_obj = pd.to_datetime(reg_date)
                     if (today - date_obj).days <= 7:
                         is_new = True
                     if last_updated_date is None or date_obj > last_updated_date:
                         last_updated_date = date_obj
                 except:
                     pass
-            data.append({"type": "단어", "en": en_word, "ko": str(row['뜻']), "note": str(row['비고']), "memorized": is_memo, "is_new": is_new})
+            data.append({"type": "단어", "en": en_word, "ko": str(row.get('뜻', '')), "note": str(row.get('비고', '')), "memorized": is_memo, "is_new": is_new})
             
-        df_expr = pd.read_excel(excel_file, sheet_name="표현").fillna("")
-        df_expr = df_expr.iloc[::-1] 
-        
-        for _, row in df_expr.iterrows():
-            en_expr = str(row['표현']).strip()
+        for row in expr_records:
+            en_expr = str(row.get('표현', '')).strip()
             if en_expr == "": continue
             is_memo = user_progress.get(en_expr, False)
             
             is_new = False
-            if '등록일' in row and row['등록일'] != "":
+            reg_date = row.get('등록일', '')
+            if reg_date != "":
                 try:
-                    date_obj = pd.to_datetime(row['등록일'])
+                    date_obj = pd.to_datetime(reg_date)
                     if (today - date_obj).days <= 7:
                         is_new = True
                     if last_updated_date is None or date_obj > last_updated_date:
                         last_updated_date = date_obj
                 except:
                     pass
-            data.append({"type": "표현", "en": en_expr, "ko": str(row['뜻']), "note": str(row['비고']), "memorized": is_memo, "is_new": is_new})
+            data.append({"type": "표현", "en": en_expr, "ko": str(row.get('뜻', '')), "note": str(row.get('비고', '')), "memorized": is_memo, "is_new": is_new})
             
         st.session_state.voca_data = data
         st.session_state.fc_queue = []
@@ -200,19 +258,30 @@ if 'voca_data' not in st.session_state or st.session_state.voca_data is None:
         st.session_state.last_updated = last_updated_date.strftime("%Y년 %m월 %d일") if last_updated_date else "기록 없음"
         
     except Exception as e:
-        st.error(f"🚨 구글 시트 데이터를 불러오지 못했습니다. 에러: {e}")
+        st.error(f"🚨 구글 시트 데이터를 가져오는 데 실패했습니다. 에러: {e}")
         st.stop()
 
+# 💡 구글 시트 '진도기록'에 실시간 업서트(Upsert)하는 최첨단 함수
 def update_memorized(word_en, is_memorized):
     for item in st.session_state.voca_data:
         if item['en'] == word_en:
             item['memorized'] = is_memorized
             break
-    progress_db[current_user][word_en] = is_memorized
-    save_json(PROGRESS_FILE, progress_db)
+            
+    records = sheet_progress.get_all_records()
+    row_idx = -1
+    for i, r in enumerate(records):
+        if str(r.get("아이디", "")).strip().lower() == current_user and str(r.get("단어", "")).strip() == word_en:
+            row_idx = i + 2 
+            break
+            
+    if row_idx != -1:
+        sheet_progress.update_cell(row_idx, 3, str(is_memorized))
+    else:
+        sheet_progress.append_row([current_user, word_en, str(is_memorized)])
 
 # =====================================================================
-# 5. 메인 화면 구성
+# 6. 메인 화면 출력 파트
 # =====================================================================
 if menu == "단어/표현 리스트":
     st.title(f"📖 {current_user}님의 단어장")
@@ -340,6 +409,7 @@ elif menu == "핵심정리":
                     if is_memorized:
                         tr.decompose() 
             
+            # 💡 2중 스크롤 완전 해결 (Native 변환 삽입)
             style_tag = soup.find('style')
             style_str = str(style_tag) if style_tag else ""
             
@@ -353,4 +423,4 @@ elif menu == "핵심정리":
             st.markdown(html_content, unsafe_allow_html=True)
             
     else:
-        st.error(f"🚨 '{html_file}' 파일을 찾을 수 없습니다. 파이썬 파일과 같은 폴더에 넣어주세요!")
+        st.error(f"🚨 '{html_file}' 파일을 찾을 수 없습니다. 깃허브 창고에 함께 업로드해 주세요!")
